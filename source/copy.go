@@ -50,6 +50,13 @@ func copyTextWithRetry(text string, owner uintptr, noHistory bool) bool {
 
 // runBindCopy — выполнение бинда в режиме copy
 func runBindCopy(cfg *Config, b *Bind) {
+	// единственная точка, через которую идёт копирование: здесь пауза
+	// гарантированно останавливает бинды, откуда бы вызов ни пришёл
+	if bindsPaused() {
+		logf("бинд %s пропущен: бинды на паузе", b.Hotkey.Pretty)
+		return
+	}
+
 	hwnd := getForegroundWindow()
 	title := ""
 	if hwnd != 0 {

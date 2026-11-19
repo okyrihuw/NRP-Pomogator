@@ -158,7 +158,7 @@ func lowLevelKeyboardProc(nCode uintptr, wparam, lparam uintptr) uintptr {
 			// клавиша не «залипла» навсегда
 			delete(swallowedKs, vk)
 		}
-		if !injected {
+		if !injected && !bindsPaused() {
 			mods := modsNow()
 			if t := matchTrigger(mods, vk); t != nil {
 				postMessage(ov.hwnd, wmAppRunTrigger, uintptr(t.idx), 0)

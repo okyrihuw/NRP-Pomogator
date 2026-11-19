@@ -17,7 +17,7 @@ import (
 
 const (
 	appName    = "Помогатор"
-	appVersion = "1.0"
+	appVersion = "1.1"
 )
 
 var (
@@ -98,6 +98,7 @@ func singleInstance() bool {
 const (
 	wmAppReload   = 0x8000 + 1
 	wmAppTrayMenu = 0x8000 + 5 // показать меню трея (для снимка/тестов)
+	wmAppSetPause = 0x8000 + 6 // поставить/снять паузу (для тестов)
 	wmAppQuit     = 0x8000 + 7 // корректный выход в главном потоке
 )
 
@@ -179,6 +180,9 @@ func performAction(kind int, b *Bind, name string) {
 	switch kind {
 	case actBind:
 		if b == nil {
+			return
+		}
+		if bindsPaused() {
 			return
 		}
 		go func() {
@@ -342,6 +346,15 @@ func wndProc(hwnd uintptr, msg uint32, wparam, lparam uintptr) uintptr {
 	case wmAppTrayMenu:
 		trayShowMenu()
 		return 0
+	case wmAppSetPause:
+		setBindsPaused(wparam != 0)
+		logf("пауза переключена вручную: бинды на паузе = %v", bindsPaused())
+		ov.rebuild(curCfg)
+		if ov.visible {
+			ov.show()
+		}
+		trayUpdateTip()
+		return 0
 	case wmAppQuit:
 		quitAppNow()
 		return 0
@@ -446,6 +459,10 @@ func main() {
 	case "shot":
 		go func() {
 			sleep(2000)
+			if os.Getenv("POMOGATOR_PAUSE") != "" {
+				postMessage(ov.hwnd, wmAppSetPause, 1, 0)
+				sleep(800)
+			}
 			postMessage(ov.hwnd, wmAppTrayMenu, 0, 0)
 			sleep(1500)
 			dir := filepath.Join(filepath.Dir(exePath()), "diagnostika")
@@ -453,6 +470,37 @@ func main() {
 			captureScreenPNG(filepath.Join(dir, "tray_menu.png"))
 			logf("снимок меню трея сделан")
 			sleep(500)
+			quitApp()
+		}()
+	case "pause":
+		go func() {
+			sleep(1500)
+			logf("--- тест паузы ---")
+			postMessage(ov.hwnd, wmAppSetPause, 1, 0) // ставим паузу
+			sleep(800)
+			copyTextWithRetry("МЕТКА", 0, false) // метка, чтобы увидеть подмену буфера
+			sleep(300)
+			var target *Bind
+			for i := range curCfg.Binds {
+				if curCfg.Binds[i].Hotkey.Pretty == "Ctrl + 7" {
+					target = &curCfg.Binds[i]
+					break
+				}
+			}
+			if target == nil && len(curCfg.Binds) > 0 {
+				target = &curCfg.Binds[0]
+			}
+			// напрямую дёргаем выполнение бинда: оно должно быть заблокировано паузой
+			runBindCopy(curCfg, target)
+			sleep(500)
+			logf("на паузе в буфере: %q", getClipboardText())
+			postMessage(ov.hwnd, wmAppSetPause, 0, 0) // снимаем паузу
+			sleep(600)
+			runBindCopy(curCfg, target)
+			sleep(500)
+			logf("после снятия паузы в буфере: %q", getClipboardText())
+			setBindsPaused(false)
+			sleep(300)
 			quitApp()
 		}()
 	case "copy":

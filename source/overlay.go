@@ -100,6 +100,12 @@ func (o *overlay) rebuild(cfg *Config) {
 	if len(subParts) > 0 {
 		content = append(content, ovRow{kind: lkSub, lines: []string{strings.Join(subParts, "  ·  ")}})
 	}
+	if bindsPaused() {
+		content = append(content, ovRow{
+			kind: lkNote, key: "ПАУЗА",
+			lines: []string{"бинды не работают — включить: правый клик по значку"},
+		})
+	}
 	content = append(content, ovRow{
 		kind: lkNote, key: "Ctrl + V",
 		lines: []string{"бинды кладут команду в буфер — открой чат и вставь"},

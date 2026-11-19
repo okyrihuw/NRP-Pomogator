@@ -17,12 +17,13 @@ const (
 
 	wmTray = 0x8000 + 2 // WM_APP + 2 — сообщения от значка в трее
 
-	trayMenuToggle  = 1
-	trayMenuReload  = 2
-	trayMenuOpenCfg = 3
-	trayMenuOpenDir = 4
-	trayMenuExit    = 5
-	trayMenuLog     = 6
+	trayMenuPause   = 1
+	trayMenuToggle  = 2
+	trayMenuReload  = 3
+	trayMenuOpenCfg = 4
+	trayMenuOpenDir = 5
+	trayMenuExit    = 6
+	trayMenuLog     = 7
 )
 
 var (
@@ -78,6 +79,9 @@ func trayIconHandle() uintptr {
 
 func trayTip() string {
 	tip := "Помогатор — биндер для админки"
+	if bindsPaused() {
+		tip = "ПОМОГАТОР — ПАУЗА, бинды не работают"
+	}
 	if curCfg != nil && curCfg.Settings.ToggleOK {
 		tip += "\nПодсказки: " + curCfg.Settings.ToggleHint.Pretty
 	}
@@ -208,9 +212,14 @@ func trayShowMenu() {
 	if ov != nil && ov.visible {
 		toggleText = "Скрыть подсказки"
 	}
+	pauseText := "Пауза (бинды не работают)"
+	if bindsPaused() {
+		pauseText = "Продолжить (бинды снова работают)"
+	}
+	appendMenuItem(hmenu, mfString, trayMenuPause, pauseText)
 	appendMenuItem(hmenu, mfString, trayMenuToggle, toggleText)
 	appendMenuItem(hmenu, mfSeparator, 0, "")
-	appendMenuItem(hmenu, mfString, trayMenuReload, "Обновить")
+	appendMenuItem(hmenu, mfString, trayMenuReload, "Обновить binds.ini")
 	appendMenuItem(hmenu, mfString, trayMenuOpenCfg, "Открыть binds.ini")
 	appendMenuItem(hmenu, mfString, trayMenuOpenDir, "Открыть папку программы")
 	appendMenuItem(hmenu, mfString, trayMenuLog, "Показать журнал (pomogator.log)")
@@ -227,11 +236,25 @@ func trayShowMenu() {
 	pPostMessageW.Call(trayHwnd, wmNull, 0, 0)
 
 	switch int32(cmd) {
+	case trayMenuPause:
+		paused := toggleBindsPause()
+		if paused {
+			logf("меню трея: пауза — бинды не срабатывают")
+			trayBalloon("Пауза", "Бинды не работают. Включить обратно: правый клик по значку → «Продолжить».", false)
+		} else {
+			logf("меню трея: пауза снята — бинды работают")
+			trayBalloon("Бинды снова работают", "", false)
+		}
+		ov.rebuild(curCfg) // в окошке появится пометка про паузу
+		if ov.visible {
+			ov.show()
+		}
+		trayUpdateTip()
 	case trayMenuToggle:
 		ov.toggle()
 		trayUpdateTip()
 	case trayMenuReload:
-		logf("меню трея: перечитать конфиг")
+		logf("меню трея: обновить binds.ini")
 		reloadConfig()
 	case trayMenuOpenCfg:
 		openConfigFile()
